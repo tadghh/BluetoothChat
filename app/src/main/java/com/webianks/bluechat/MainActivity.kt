@@ -2,7 +2,7 @@ package com.webianks.bluechat
 
 import android.Manifest
 import android.annotation.SuppressLint
-import android.app.Activity
+import androidx.appcompat.app.AppCompatActivity
 import android.bluetooth.BluetoothAdapter
 import android.bluetooth.BluetoothDevice
 import android.content.BroadcastReceiver
@@ -15,13 +15,11 @@ import android.os.Build
 import android.os.Bundle
 import android.os.Handler
 import android.os.Message
-import android.support.design.widget.Snackbar
-import android.support.v7.app.AlertDialog
-import android.support.v7.app.AppCompatActivity
-import android.support.v7.widget.LinearLayoutManager
-import android.support.v7.widget.RecyclerView
+
 import android.view.View
 import android.widget.*
+import androidx.recyclerview.widget.LinearLayoutManager
+import androidx.recyclerview.widget.RecyclerView
 
 class MainActivity : AppCompatActivity(), DevicesRecyclerViewAdapter.ItemClickListener,
         ChatFragment.CommunicationListener {
@@ -250,7 +248,7 @@ class MainActivity : AppCompatActivity(), DevicesRecyclerViewAdapter.ItemClickLi
 
         progressBar.visibility = View.INVISIBLE
 
-        if (requestCode == REQUEST_ENABLE_BT && resultCode == Activity.RESULT_OK) {
+        if (requestCode == REQUEST_ENABLE_BT && resultCode == AppCompatActivity.RESULT_OK) {
             //Bluetooth is now connected.
             status.text = getString(R.string.not_connected)
 
@@ -466,6 +464,7 @@ class MainActivity : AppCompatActivity(), DevicesRecyclerViewAdapter.ItemClickLi
            sendMessage(message)
     }
 
+    @Deprecated("Deprecated in Java")
     override fun onBackPressed() {
         if (supportFragmentManager.backStackEntryCount == 0)
             super.onBackPressed()

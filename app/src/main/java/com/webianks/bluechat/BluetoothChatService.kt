@@ -169,9 +169,12 @@ class BluetoothChatService(context: Context, handler: Handler){
         // Send the name of the connected device back to the UI Activity
         val msg = mHandler?.obtainMessage(Constants.MESSAGE_DEVICE_NAME)
         val bundle = Bundle()
+
         bundle.putString(Constants.DEVICE_NAME, device?.name)
         msg?.data = bundle
-        mHandler?.sendMessage(msg)
+        if (msg != null) {
+            mHandler?.sendMessage(msg)
+        }
         // Update UI title
         //updateUserInterfaceTitle()
     }
