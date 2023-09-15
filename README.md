@@ -8,13 +8,14 @@ Bluetooth chat app written purely in Kotlin.
 # Prerequisite
 
 <ul>
-<li>Android Studio 3.0</li>
-<li>Gradle Plugin v3.0.0-beta1</li>
-<li>Kotlin Plugin v1.1.3-2</li>
+<li>Android Studio Giraffe | 2022.3.1 Patch 1</li>
+<li>Java 17</li>
+<li>Gradle Plugin 8.1.1</li>
+<li>Kotlin Plugin v1.9.20-Beta</li>
 </ul>
 
 # Min SDK
-21
+30
 
 # Screens
 
