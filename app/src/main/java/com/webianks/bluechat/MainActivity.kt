@@ -2,6 +2,7 @@ package com.webianks.bluechat
 
 import android.Manifest
 import android.annotation.SuppressLint
+import android.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import android.bluetooth.BluetoothAdapter
 import android.bluetooth.BluetoothDevice
@@ -20,6 +21,7 @@ import android.view.View
 import android.widget.*
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
+import com.google.android.material.snackbar.Snackbar
 
 class MainActivity : AppCompatActivity(), DevicesRecyclerViewAdapter.ItemClickListener,
         ChatFragment.CommunicationListener {

@@ -1,11 +1,11 @@
 package com.webianks.bluechat
 
 import android.content.Context
-import android.support.v7.widget.RecyclerView
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.widget.TextView
+import androidx.recyclerview.widget.RecyclerView
 import java.text.DateFormat
 import java.text.SimpleDateFormat
 import java.util.*
@@ -20,7 +20,7 @@ class ChatAdapter(val chatData: List<Message>, val context: Context) : RecyclerV
     val RECEIVED = 1
     var df: SimpleDateFormat = SimpleDateFormat("hh:mm a",Locale.getDefault())
 
-    override fun onBindViewHolder(holder: RecyclerView.ViewHolder?, position: Int) {
+     override fun onBindViewHolder(holder: RecyclerView.ViewHolder, position: Int) {
 
         when(holder?.itemViewType){
 
@@ -44,6 +44,10 @@ class ChatAdapter(val chatData: List<Message>, val context: Context) : RecyclerV
         }
     }
 
+
+
+
+
     override fun getItemViewType(position: Int): Int {
 
         when(chatData[position].type){
@@ -58,7 +62,7 @@ class ChatAdapter(val chatData: List<Message>, val context: Context) : RecyclerV
         return chatData.size
     }
 
-    override fun onCreateViewHolder(parent: ViewGroup?, viewType: Int): RecyclerView.ViewHolder {
+    override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): RecyclerView.ViewHolder {
 
         when(viewType){
             SENT -> {

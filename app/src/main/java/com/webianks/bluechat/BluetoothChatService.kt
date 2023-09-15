@@ -237,8 +237,11 @@ class BluetoothChatService(context: Context, handler: Handler){
         val msg = mHandler?.obtainMessage(Constants.MESSAGE_TOAST)
         val bundle = Bundle()
         bundle.putString(Constants.TOAST, "Unable to connect device")
-        msg?.data = bundle
-        mHandler?.sendMessage(msg)
+        if (msg != null) {
+            msg.data = bundle
+            mHandler?.sendMessage(msg)
+        }
+
 
         mState = STATE_NONE
         // Update UI title
@@ -257,7 +260,9 @@ class BluetoothChatService(context: Context, handler: Handler){
         val bundle = Bundle()
         bundle.putString(Constants.TOAST, "Device connection was lost")
         msg?.data = bundle
-        mHandler?.sendMessage(msg)
+        if (msg != null) {
+            mHandler?.sendMessage(msg)
+        }
 
         mState = STATE_NONE
         // Update UI title
