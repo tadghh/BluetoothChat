@@ -72,11 +72,11 @@ class ChatFragment : Fragment(), View.OnClickListener {
             override fun afterTextChanged(s: Editable) {
 
                 if (s.isNotEmpty()) {
-                    chatIcon.setImageDrawable(activity.getDrawable(R.drawable.ic_send))
+                    chatIcon.setImageDrawable(activity?.getDrawable(R.drawable.ic_send))
                     sendButton.isClickable = true
                     sendButton.isEnabled = true
                 }else {
-                    chatIcon.setImageDrawable(activity.getDrawable(R.drawable.ic_send_depri))
+                    chatIcon.setImageDrawable(activity?.getDrawable(R.drawable.ic_send_depri))
                     sendButton.isClickable = false
                     sendButton.isEnabled = false
                 }
@@ -86,7 +86,7 @@ class ChatFragment : Fragment(), View.OnClickListener {
         sendButton.setOnClickListener(this)
 
 
-        chatAdapter = ChatAdapter(messageList.reversed(),activity)
+        chatAdapter = activity?.let { ChatAdapter(messageList.reversed(), it) }
         recyclerviewChat.adapter = chatAdapter
 
     }
@@ -112,7 +112,7 @@ class ChatFragment : Fragment(), View.OnClickListener {
     fun communicate(message: Message){
         messageList.add(message)
         if(activity != null) {
-            chatAdapter = ChatAdapter(messageList.reversed(), activity)
+            chatAdapter = ChatAdapter(messageList.reversed(), requireActivity())
             recyclerviewChat.adapter = chatAdapter
             recyclerviewChat.scrollToPosition(0)
         }
