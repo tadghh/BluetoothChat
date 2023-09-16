@@ -1,5 +1,6 @@
 package com.webianks.bluechat
 
+import android.Manifest
 import android.annotation.SuppressLint
 import android.bluetooth.BluetoothAdapter
 import android.bluetooth.BluetoothDevice
@@ -7,9 +8,11 @@ import android.bluetooth.BluetoothManager
 import android.bluetooth.BluetoothServerSocket
 import android.bluetooth.BluetoothSocket
 import android.content.Context
+import android.content.pm.PackageManager
 import android.os.Bundle
 import android.os.Handler
 import android.util.Log
+import androidx.core.app.ActivityCompat
 import java.io.IOException
 import java.io.InputStream
 import java.io.OutputStream
@@ -30,7 +33,7 @@ class BluetoothChatService(context: Context, handler: Handler) {
     private var mConnectedThread: ConnectedThread? = null
     private var mState: Int = 0
     private var mNewState: Int = 0
-
+    private var currentContext = context;
     private val TAG: String = javaClass.simpleName
 
     // Unique UUID for this application
@@ -145,7 +148,7 @@ class BluetoothChatService(context: Context, handler: Handler) {
      * *
      * @param device The BluetoothDevice that has been connected
      */
-    @SuppressLint("MissingPermission")
+
     @Synchronized
     fun connected(socket: BluetoothSocket?, device: BluetoothDevice?, socketType: String) {
         Log.d(TAG, "connected, Socket Type:$socketType")
@@ -181,6 +184,20 @@ class BluetoothChatService(context: Context, handler: Handler) {
         val bundle = Bundle()
 
 
+        if (ActivityCompat.checkSelfPermission(
+                currentContext,
+                Manifest.permission.BLUETOOTH_CONNECT
+            ) != PackageManager.PERMISSION_GRANTED
+        ) {
+            // TODO: Consider calling
+            //    ActivityCompat#requestPermissions
+            // here to request the missing permissions, and then overriding
+            //   public void onRequestPermissionsResult(int requestCode, String[] permissions,
+            //                                          int[] grantResults)
+            // to handle the case where the user grants the permission. See the documentation
+            // for ActivityCompat#requestPermissions for more details.
+            return
+        }
         bundle.putString(Constants.DEVICE_NAME, device?.name)
         msg?.data = bundle
         if (msg != null) {
