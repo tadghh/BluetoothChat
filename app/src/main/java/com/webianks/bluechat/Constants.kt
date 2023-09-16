@@ -4,8 +4,7 @@ package com.webianks.bluechat
  * Created by ramankit on 20/7/17.
  */
 
-class Constants{
-
+class Constants {
     companion object {
 
         // Message types sent from the BluetoothChatService Handler

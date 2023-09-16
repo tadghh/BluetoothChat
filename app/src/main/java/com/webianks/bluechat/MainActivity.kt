@@ -1,11 +1,12 @@
 package com.webianks.bluechat
 
+
 import android.Manifest
 import android.annotation.SuppressLint
 import android.app.AlertDialog
-import androidx.appcompat.app.AppCompatActivity
 import android.bluetooth.BluetoothAdapter
 import android.bluetooth.BluetoothDevice
+import android.bluetooth.BluetoothManager
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
@@ -15,20 +16,24 @@ import android.graphics.Typeface
 import android.os.Build
 import android.os.Bundle
 import android.os.Handler
-import android.os.Message
-
+import android.os.HandlerThread
 import android.view.View
 import android.widget.*
+import androidx.annotation.RequiresApi
+import androidx.appcompat.app.AppCompatActivity
+import androidx.appcompat.content.res.AppCompatResources
 import androidx.core.app.ActivityCompat
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.google.android.material.snackbar.Snackbar
+import kotlin.system.exitProcess
+
 
 class MainActivity : AppCompatActivity(), DevicesRecyclerViewAdapter.ItemClickListener,
-        ChatFragment.CommunicationListener {
+    ChatFragment.CommunicationListener {
 
     private val REQUEST_ENABLE_BT = 123
-    private val TAG = javaClass.simpleName
+
     private lateinit var progressBar: ProgressBar
     private lateinit var recyclerView: RecyclerView
     private lateinit var recyclerViewPaired: RecyclerView
@@ -43,13 +48,149 @@ class MainActivity : AppCompatActivity(), DevicesRecyclerViewAdapter.ItemClickLi
     private lateinit var headerLabelContainer: LinearLayout
     private lateinit var status: TextView
     private lateinit var connectionDot: ImageView
-    private lateinit var  mConnectedDeviceName: String
+    private lateinit var mConnectedDeviceName: String
     private var connected: Boolean = false
-
+    private lateinit var handlerThread: HandlerThread
     private var mChatService: BluetoothChatService? = null
     private lateinit var chatFragment: ChatFragment
 
+    private lateinit var mHandler: Handler
+
+
+    @SuppressLint("MissingPermission")
     override fun onCreate(savedInstanceState: Bundle?) {
+        handlerThread = HandlerThread("MessagesHandler")
+        handlerThread.start()
+        mHandler = Handler(handlerThread.looper) { msg ->
+
+            when (msg.what) {
+
+                Constants.MESSAGE_STATE_CHANGE -> {
+                    when (msg.arg1) {
+                        BluetoothChatService.STATE_CONNECTED -> {
+                            val newStatus =
+                                "${getString(R.string.connected_to)} $mConnectedDeviceName"
+                            status.text = newStatus
+
+                            connectionDot.setImageDrawable(
+                                AppCompatResources.getDrawable(
+                                    applicationContext,
+                                    R.drawable.ic_circle_connected
+                                )
+                            )
+                            Snackbar.make(
+                                findViewById(R.id.mainScreen),
+                                "Connected to $mConnectedDeviceName",
+                                Snackbar.LENGTH_SHORT
+                            ).show()
+                            //mConversationArrayAdapter.clear()
+                            connected = true
+                        }
+
+                        BluetoothChatService.STATE_CONNECTING -> {
+                            status.text = getString(R.string.connecting)
+                            connectionDot.setImageDrawable(
+                                AppCompatResources.getDrawable(
+                                    applicationContext,
+                                    R.drawable.ic_circle_connecting
+                                )
+                            )
+                            connected = false
+                        }
+
+                        BluetoothChatService.STATE_LISTEN, BluetoothChatService.STATE_NONE -> {
+                            status.text = getString(R.string.not_connected)
+                            connectionDot.setImageDrawable(
+                                AppCompatResources.getDrawable(
+                                    applicationContext,
+                                    R.drawable.ic_circle_red
+                                )
+                            )
+                            Snackbar.make(
+                                findViewById(R.id.mainScreen),
+                                getString(R.string.not_connected),
+                                Snackbar.LENGTH_SHORT
+                            ).show()
+                            connected = false
+                        }
+                    }
+                }
+
+                Constants.MESSAGE_WRITE -> {
+                    val writeBuf = msg.obj as ByteArray
+                    // construct a string from the buffer
+                    val writeMessage = String(writeBuf)
+                    //Toast.makeText(this@MainActivity,"Me: $writeMessage",Toast.LENGTH_SHORT).show()
+                    //mConversationArrayAdapter.add("Me:  " + writeMessage)
+                    val milliSecondsTime = System.currentTimeMillis()
+                    chatFragment.communicate(
+                        Message(
+                            writeMessage,
+                            milliSecondsTime,
+                            Constants.MESSAGE_TYPE_SENT
+                        )
+                    )
+
+                }
+
+                Constants.MESSAGE_READ -> {
+                    val readBuf = msg.obj as ByteArray
+                    // construct a string from the valid bytes in the buffer
+                    val readMessage = String(readBuf, 0, msg.arg1)
+                    val milliSecondsTime = System.currentTimeMillis()
+                    //Toast.makeText(this@MainActivity,"$mConnectedDeviceName : $readMessage",Toast.LENGTH_SHORT).show()
+                    //mConversationArrayAdapter.add(mConnectedDeviceName + ":  " + readMessage)
+                    chatFragment.communicate(
+                        Message(
+                            readMessage,
+                            milliSecondsTime,
+                            Constants.MESSAGE_TYPE_RECEIVED
+                        )
+                    )
+                }
+
+                Constants.MESSAGE_DEVICE_NAME -> {
+                    // save the connected device's name
+                    mConnectedDeviceName = msg.data.getString(Constants.DEVICE_NAME).toString()
+                    val newText = "${getString(R.string.connected_to)} $mConnectedDeviceName"
+                    status.text = newText
+                    connectionDot.setImageDrawable(
+                        AppCompatResources.getDrawable(
+                            applicationContext,
+                            R.drawable.ic_circle_connected
+                        )
+                    )
+                    Snackbar.make(
+                        findViewById(R.id.mainScreen),
+                        "Connected to $mConnectedDeviceName",
+                        Snackbar.LENGTH_SHORT
+                    ).show()
+                    connected = true
+                    showChatFragment()
+                }
+
+                Constants.MESSAGE_TOAST -> {
+                    status.text = getString(R.string.not_connected)
+                    connectionDot.setImageDrawable(
+                        AppCompatResources.getDrawable(
+                            applicationContext,
+                            R.drawable.ic_circle_red
+                        )
+                    )
+                    msg.data.getString(Constants.TOAST)
+                        ?.let {
+                            Snackbar.make(
+                                findViewById(R.id.mainScreen),
+                                it,
+                                Snackbar.LENGTH_SHORT
+                            ).show()
+                        }
+                    connected = false
+                }
+            }
+
+            true
+        }
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
 
@@ -72,7 +213,8 @@ class MainActivity : AppCompatActivity(), DevicesRecyclerViewAdapter.ItemClickLi
         headerLabelContainer.visibility = View.INVISIBLE
 
         if (savedInstanceState != null)
-            alreadyAskedForPermission = savedInstanceState.getBoolean(PERMISSION_REQUEST_LOCATION_KEY, false)
+            alreadyAskedForPermission =
+                savedInstanceState.getBoolean(PERMISSION_REQUEST_LOCATION_KEY, false)
 
         recyclerView.layoutManager = LinearLayoutManager(this)
         recyclerViewPaired.layoutManager = LinearLayoutManager(this)
@@ -101,7 +243,10 @@ class MainActivity : AppCompatActivity(), DevicesRecyclerViewAdapter.ItemClickLi
         this.registerReceiver(mReceiver, filter)
 
         // Get the local Bluetooth adapter
-        mBtAdapter = BluetoothAdapter.getDefaultAdapter()
+        val bluetoothManager =
+            applicationContext.getSystemService(Context.BLUETOOTH_SERVICE) as BluetoothManager
+
+        mBtAdapter = bluetoothManager.adapter
 
         // Initialize the BluetoothChatService to perform bluetooth connections
         mChatService = BluetoothChatService(this, mHandler)
@@ -113,21 +258,8 @@ class MainActivity : AppCompatActivity(), DevicesRecyclerViewAdapter.ItemClickLi
             if (mBtAdapter?.isEnabled == false) {
 
                 val enableBtIntent = Intent(BluetoothAdapter.ACTION_REQUEST_ENABLE)
-                if (ActivityCompat.checkSelfPermission(
-                        this,
-                        Manifest.permission.BLUETOOTH_CONNECT
-                    ) != PackageManager.PERMISSION_GRANTED
-                ) {
-                    // TODO: Consider calling
-                    //    ActivityCompat#requestPermissions
-                    // here to request the missing permissions, and then overriding
-                    //   public void onRequestPermissionsResult(int requestCode, String[] permissions,
-                    //                                          int[] grantResults)
-                    // to handle the case where the user grants the permission. See the documentation
-                    // for ActivityCompat#requestPermissions for more details.
-                    return
-                }
-                startActivityForResult(enableBtIntent, REQUEST_ENABLE_BT)
+
+                startActivity(enableBtIntent)
             } else {
                 status.text = getString(R.string.not_connected)
             }
@@ -137,15 +269,16 @@ class MainActivity : AppCompatActivity(), DevicesRecyclerViewAdapter.ItemClickLi
             val mPairedDeviceList = arrayListOf<DeviceData>()
 
             // If there are paired devices, add each one to the ArrayAdapter
-            if (pairedDevices?.size ?: 0 > 0) {
+            if ((pairedDevices?.size ?: 0) > 0) {
                 // There are paired devices. Get the name and address of each paired device.
                 for (device in pairedDevices!!) {
                     val deviceName = device.name
                     val deviceHardwareAddress = device.address // MAC address
-                    mPairedDeviceList.add(DeviceData(deviceName,deviceHardwareAddress))
+                    mPairedDeviceList.add(DeviceData(deviceName, deviceHardwareAddress))
                 }
 
-                val devicesAdapter = DevicesRecyclerViewAdapter(context = this, mDeviceList = mPairedDeviceList)
+                val devicesAdapter =
+                    DevicesRecyclerViewAdapter(context = this, mDeviceList = mPairedDeviceList)
                 recyclerViewPaired.adapter = devicesAdapter
                 devicesAdapter.setItemClickListener(this)
                 headerLabelPaired.visibility = View.VISIBLE
@@ -157,24 +290,12 @@ class MainActivity : AppCompatActivity(), DevicesRecyclerViewAdapter.ItemClickLi
 
     }
 
+    @SuppressLint("MissingPermission")
     private fun makeVisible() {
 
         val discoverableIntent = Intent(BluetoothAdapter.ACTION_REQUEST_DISCOVERABLE)
         discoverableIntent.putExtra(BluetoothAdapter.EXTRA_DISCOVERABLE_DURATION, 300)
-        if (ActivityCompat.checkSelfPermission(
-                this,
-                Manifest.permission.BLUETOOTH_ADVERTISE
-            ) != PackageManager.PERMISSION_GRANTED
-        ) {
-            // TODO: Consider calling
-            //    ActivityCompat#requestPermissions
-            // here to request the missing permissions, and then overriding
-            //   public void onRequestPermissionsResult(int requestCode, String[] permissions,
-            //                                          int[] grantResults)
-            // to handle the case where the user grants the permission. See the documentation
-            // for ActivityCompat#requestPermissions for more details.
-            return
-        }
+
         startActivity(discoverableIntent)
 
     }
@@ -186,31 +307,25 @@ class MainActivity : AppCompatActivity(), DevicesRecyclerViewAdapter.ItemClickLi
             return
         }
 
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-            // Android M Permission check 
-            if (this.checkSelfPermission(Manifest.permission.ACCESS_COARSE_LOCATION) !=
-                    PackageManager.PERMISSION_GRANTED) {
+        // Android M Permission check 
+        if (this.checkSelfPermission(Manifest.permission.ACCESS_COARSE_LOCATION) !=
+            PackageManager.PERMISSION_GRANTED
+        ) {
+            ActivityCompat.requestPermissions(
+                this,
+                arrayOf(
+                    Manifest.permission.BLUETOOTH_SCAN,
+                    Manifest.permission.ACCESS_FINE_LOCATION,
+                    Manifest.permission.ACCESS_COARSE_LOCATION,
+                    Manifest.permission.BLUETOOTH_ADVERTISE,
+                    Manifest.permission.BLUETOOTH_CONNECT,
+                ),
+                1
+            )
 
-                val builder = AlertDialog.Builder(this)
-                builder.setTitle(getString(R.string.need_loc_access))
-                builder.setMessage(getString(R.string.please_grant_loc_access))
-                builder.setPositiveButton(android.R.string.ok, null)
-                builder.setOnDismissListener {
-                    // the dialog will be opened so we have to save that
-                    alreadyAskedForPermission = true
-                    requestPermissions(arrayOf(
-                            Manifest.permission.ACCESS_COARSE_LOCATION,
-                            Manifest.permission.ACCESS_FINE_LOCATION
-                    ), PERMISSION_REQUEST_LOCATION)
-                }
-                builder.show()
 
-            } else {
-                startDiscovery()
-            }
         } else {
             startDiscovery()
-            alreadyAskedForPermission = true
         }
 
     }
@@ -218,10 +333,10 @@ class MainActivity : AppCompatActivity(), DevicesRecyclerViewAdapter.ItemClickLi
     private fun showAlertAndExit() {
 
         AlertDialog.Builder(this)
-                .setTitle(getString(R.string.not_compatible))
-                .setMessage(getString(R.string.no_support))
-                .setPositiveButton("Exit", { _, _ -> System.exit(0) })
-                .show()
+            .setTitle(getString(R.string.not_compatible))
+            .setMessage(getString(R.string.no_support))
+            .setPositiveButton("Exit") { _, _ -> exitProcess(0) }
+            .show()
     }
 
     private fun findDevices() {
@@ -251,7 +366,7 @@ class MainActivity : AppCompatActivity(), DevicesRecyclerViewAdapter.ItemClickLi
             // for ActivityCompat#requestPermissions for more details.
             return
         }
-        if (mBtAdapter?.isDiscovering ?: false)
+        if (mBtAdapter?.isDiscovering == true)
             mBtAdapter?.cancelDiscovery()
 
         // Request discover from BluetoothAdapter
@@ -261,6 +376,8 @@ class MainActivity : AppCompatActivity(), DevicesRecyclerViewAdapter.ItemClickLi
     // Create a BroadcastReceiver for ACTION_FOUND.
     private val mReceiver = object : BroadcastReceiver() {
 
+        @RequiresApi(Build.VERSION_CODES.TIRAMISU)
+        @SuppressLint("MissingPermission")
         override fun onReceive(context: Context, intent: Intent) {
 
             val action = intent.action
@@ -268,21 +385,12 @@ class MainActivity : AppCompatActivity(), DevicesRecyclerViewAdapter.ItemClickLi
             if (BluetoothDevice.ACTION_FOUND == action) {
                 // Discovery has found a device. Get the BluetoothDevice
                 // object and its info from the Intent.
-                val device = intent.getParcelableExtra<BluetoothDevice>(BluetoothDevice.EXTRA_DEVICE)
-                 if (ActivityCompat.checkSelfPermission(
-                        context,
-                        Manifest.permission.BLUETOOTH_CONNECT
-                    ) != PackageManager.PERMISSION_GRANTED
-                ) {
-                    // TODO: Consider calling
-                    //    ActivityCompat#requestPermissions
-                    // here to request the missing permissions, and then overriding
-                    //   public void onRequestPermissionsResult(int requestCode, String[] permissions,
-                    //                                          int[] grantResults)
-                    // to handle the case where the user grants the permission. See the documentation
-                    // for ActivityCompat#requestPermissions for more details.
-                    return
-                }
+                val device =
+                    intent.getParcelableExtra<BluetoothDevice>(
+                        BluetoothDevice.EXTRA_DEVICE,
+                        BluetoothDevice::class.java
+                    )
+
                 val deviceName = device?.name
                 val deviceHardwareAddress = device?.address // MAC address
 
@@ -305,12 +413,13 @@ class MainActivity : AppCompatActivity(), DevicesRecyclerViewAdapter.ItemClickLi
         }
     }
 
+    @Deprecated("Deprecated in Java")
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         super.onActivityResult(requestCode, resultCode, data)
 
         progressBar.visibility = View.INVISIBLE
 
-        if (requestCode == REQUEST_ENABLE_BT && resultCode == AppCompatActivity.RESULT_OK) {
+        if (requestCode == REQUEST_ENABLE_BT && resultCode == RESULT_OK) {
             //Bluetooth is now connected.
             status.text = getString(R.string.not_connected)
 
@@ -335,15 +444,16 @@ class MainActivity : AppCompatActivity(), DevicesRecyclerViewAdapter.ItemClickLi
             mPairedDeviceList.clear()
 
             // If there are paired devices, add each one to the ArrayAdapter
-            if (pairedDevices?.size ?: 0 > 0) {
+            if ((pairedDevices?.size ?: 0) > 0) {
                 // There are paired devices. Get the name and address of each paired device.
                 for (device in pairedDevices!!) {
                     val deviceName = device.name
                     val deviceHardwareAddress = device.address // MAC address
-                    mPairedDeviceList.add(DeviceData(deviceName,deviceHardwareAddress))
+                    mPairedDeviceList.add(DeviceData(deviceName, deviceHardwareAddress))
                 }
 
-                val devicesAdapter = DevicesRecyclerViewAdapter(context = this, mDeviceList = mPairedDeviceList)
+                val devicesAdapter =
+                    DevicesRecyclerViewAdapter(context = this, mDeviceList = mPairedDeviceList)
                 recyclerViewPaired.adapter = devicesAdapter
                 devicesAdapter.setItemClickListener(this)
                 headerLabelPaired.visibility = View.VISIBLE
@@ -359,8 +469,10 @@ class MainActivity : AppCompatActivity(), DevicesRecyclerViewAdapter.ItemClickLi
         outState.putBoolean(PERMISSION_REQUEST_LOCATION_KEY, alreadyAskedForPermission)
     }
 
-    override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>,
-                                            grantResults: IntArray) {
+    override fun onRequestPermissionsResult(
+        requestCode: Int, permissions: Array<out String>,
+        grantResults: IntArray
+    ) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
         when (requestCode) {
 
@@ -368,17 +480,16 @@ class MainActivity : AppCompatActivity(), DevicesRecyclerViewAdapter.ItemClickLi
                 // the request returned a result so the dialog is closed
                 alreadyAskedForPermission = false
                 if (grantResults[0] == PackageManager.PERMISSION_GRANTED &&
-                        grantResults[1] == PackageManager.PERMISSION_GRANTED) {
+                    grantResults[1] == PackageManager.PERMISSION_GRANTED
+                ) {
                     //Log.d(TAG, "Coarse and fine location permissions granted")
                     startDiscovery()
                 } else {
-                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-                        val builder = AlertDialog.Builder(this)
-                        builder.setTitle(getString(R.string.fun_limted))
-                        builder.setMessage(getString(R.string.since_perm_not_granted))
-                        builder.setPositiveButton(android.R.string.ok, null)
-                        builder.show()
-                    }
+                    val builder = AlertDialog.Builder(this)
+                    builder.setTitle(getString(R.string.fun_limted))
+                    builder.setMessage(getString(R.string.since_perm_not_granted))
+                    builder.setPositiveButton(android.R.string.ok, null)
+                    builder.show()
                 }
             }
         }
@@ -411,7 +522,12 @@ class MainActivity : AppCompatActivity(), DevicesRecyclerViewAdapter.ItemClickLi
         val device = mBtAdapter?.getRemoteDevice(deviceAddress)
 
         status.text = getString(R.string.connecting)
-        connectionDot.setImageDrawable(getDrawable(R.drawable.ic_circle_connecting))
+        connectionDot.setImageDrawable(
+            AppCompatResources.getDrawable(
+                applicationContext,
+                R.drawable.ic_circle_connecting
+            )
+        )
 
         // Attempt to connect to the device
         mChatService?.connect(device, true)
@@ -431,7 +547,7 @@ class MainActivity : AppCompatActivity(), DevicesRecyclerViewAdapter.ItemClickLi
             }
         }
 
-        if(connected)
+        if (connected)
             showChatFragment()
 
     }
@@ -439,91 +555,21 @@ class MainActivity : AppCompatActivity(), DevicesRecyclerViewAdapter.ItemClickLi
     override fun onDestroy() {
         super.onDestroy()
         unregisterReceiver(mReceiver)
+        handlerThread.quitSafely()
+
     }
 
 
     /**
      * The Handler that gets information back from the BluetoothChatService
      */
-    private val mHandler = @SuppressLint("HandlerLeak")
-    object : Handler() {
-        override fun handleMessage(msg: Message) {
-
-            when (msg.what) {
-
-                Constants.MESSAGE_STATE_CHANGE -> {
-
-                    when (msg.arg1) {
-
-                        BluetoothChatService.STATE_CONNECTED -> {
-
-                            status.text = getString(R.string.connected_to) + " "+ mConnectedDeviceName
-                            connectionDot.setImageDrawable(getDrawable(R.drawable.ic_circle_connected))
-                            Snackbar.make(findViewById(R.id.mainScreen),"Connected to " + mConnectedDeviceName,Snackbar.LENGTH_SHORT).show()
-                            //mConversationArrayAdapter.clear()
-                            connected = true
-                        }
-
-                        BluetoothChatService.STATE_CONNECTING -> {
-                            status.text = getString(R.string.connecting)
-                            connectionDot.setImageDrawable(getDrawable(R.drawable.ic_circle_connecting))
-                            connected = false
-                        }
-
-                        BluetoothChatService.STATE_LISTEN, BluetoothChatService.STATE_NONE -> {
-                            status.text = getString(R.string.not_connected)
-                            connectionDot.setImageDrawable(getDrawable(R.drawable.ic_circle_red))
-                            Snackbar.make(findViewById(R.id.mainScreen),getString(R.string.not_connected),Snackbar.LENGTH_SHORT).show()
-                            connected = false
-                        }
-                    }
-                }
-
-                Constants.MESSAGE_WRITE -> {
-                    val writeBuf = msg.obj as ByteArray
-                    // construct a string from the buffer
-                    val writeMessage = String(writeBuf)
-                    //Toast.makeText(this@MainActivity,"Me: $writeMessage",Toast.LENGTH_SHORT).show()
-                    //mConversationArrayAdapter.add("Me:  " + writeMessage)
-                    val milliSecondsTime = System.currentTimeMillis()
-                    chatFragment.communicate(com.webianks.bluechat.Message(writeMessage,milliSecondsTime,Constants.MESSAGE_TYPE_SENT))
-
-                }
-                Constants.MESSAGE_READ -> {
-                    val readBuf = msg.obj as ByteArray
-                    // construct a string from the valid bytes in the buffer
-                    val readMessage = String(readBuf, 0, msg.arg1)
-                    val milliSecondsTime = System.currentTimeMillis()
-                    //Toast.makeText(this@MainActivity,"$mConnectedDeviceName : $readMessage",Toast.LENGTH_SHORT).show()
-                    //mConversationArrayAdapter.add(mConnectedDeviceName + ":  " + readMessage)
-                    chatFragment.communicate(com.webianks.bluechat.Message(readMessage,milliSecondsTime,Constants.MESSAGE_TYPE_RECEIVED))
-                }
-                Constants.MESSAGE_DEVICE_NAME -> {
-                    // save the connected device's name
-                    mConnectedDeviceName = msg.data.getString(Constants.DEVICE_NAME).toString()
-                    status.text = getString(R.string.connected_to) + " " +mConnectedDeviceName
-                    connectionDot.setImageDrawable(getDrawable(R.drawable.ic_circle_connected))
-                    Snackbar.make(findViewById(R.id.mainScreen),"Connected to " + mConnectedDeviceName,Snackbar.LENGTH_SHORT).show()
-                    connected = true
-                    showChatFragment()
-                }
-                Constants.MESSAGE_TOAST -> {
-                    status.text = getString(R.string.not_connected)
-                    connectionDot.setImageDrawable(getDrawable(R.drawable.ic_circle_red))
-                    msg.data.getString(Constants.TOAST)
-                        ?.let { Snackbar.make(findViewById(R.id.mainScreen), it,Snackbar.LENGTH_SHORT).show() }
-                    connected = false
-                  }
-            }
-        }
-    }
 
 
     private fun sendMessage(message: String) {
 
         // Check that we're actually connected before trying anything
         if (mChatService?.getState() != BluetoothChatService.STATE_CONNECTED) {
-            Toast.makeText(this, R.string.not_connected, Toast.LENGTH_SHORT).show();
+            Toast.makeText(this, R.string.not_connected, Toast.LENGTH_SHORT).show()
             return
         }
 
@@ -541,7 +587,7 @@ class MainActivity : AppCompatActivity(), DevicesRecyclerViewAdapter.ItemClickLi
 
     private fun showChatFragment() {
 
-        if(!isFinishing) {
+        if (!isFinishing) {
             val fragmentManager = supportFragmentManager
             val fragmentTransaction = fragmentManager.beginTransaction()
             chatFragment = ChatFragment.newInstance()
@@ -553,15 +599,8 @@ class MainActivity : AppCompatActivity(), DevicesRecyclerViewAdapter.ItemClickLi
     }
 
     override fun onCommunication(message: String) {
-           sendMessage(message)
+        sendMessage(message)
     }
 
-    @Deprecated("Deprecated in Java")
-    override fun onBackPressed() {
-        if (supportFragmentManager.backStackEntryCount == 0)
-            super.onBackPressed()
-        else
-            supportFragmentManager.popBackStack()
-    }
 
 }

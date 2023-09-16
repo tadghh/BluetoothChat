@@ -1,13 +1,12 @@
 package com.webianks.bluechat
 
 import android.os.Bundle
-
+import android.text.Editable
 import android.text.TextWatcher
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.widget.EditText
-import android.text.Editable
 import android.widget.FrameLayout
 import android.widget.ImageView
 import androidx.fragment.app.Fragment
@@ -45,15 +44,15 @@ class ChatFragment : Fragment(), View.OnClickListener {
         inflater: LayoutInflater,
         container: ViewGroup?,
         savedInstanceState: Bundle?
-    ): View? {
+    ): View {
 
-        val mView: View  = LayoutInflater.from(activity).inflate(R.layout.chat_fragment, container, false)
+        val mView: View =
+            LayoutInflater.from(activity).inflate(R.layout.chat_fragment, container, false)
         initViews(mView)
         return mView
     }
 
     private fun initViews(mView: View) {
-
         chatInput = mView.findViewById(R.id.chatInput)
         val chatIcon: ImageView = mView.findViewById(R.id.sendIcon)
         sendButton = mView.findViewById(R.id.sendButton)
@@ -66,57 +65,52 @@ class ChatFragment : Fragment(), View.OnClickListener {
         llm.reverseLayout = true
         recyclerviewChat.layoutManager = llm
 
-        chatInput.addTextChangedListener(object : TextWatcher {
-            override fun onTextChanged(s: CharSequence, start: Int, before: Int, count: Int) {}
-            override fun beforeTextChanged(s: CharSequence, start: Int, count: Int, after: Int) {}
-            override fun afterTextChanged(s: Editable) {
-
+        val textWatcher = object : TextWatcher {
+            override fun onTextChanged(s: CharSequence, start: Int, before: Int, count: Int) {
                 if (s.isNotEmpty()) {
-                    chatIcon.setImageDrawable(activity?.getDrawable(R.drawable.ic_send))
+                    chatIcon.setImageResource(R.drawable.ic_send)
                     sendButton.isClickable = true
                     sendButton.isEnabled = true
-                }else {
-                    chatIcon.setImageDrawable(activity?.getDrawable(R.drawable.ic_send_depri))
+                } else {
+                    chatIcon.setImageResource(R.drawable.ic_send_depri)
                     sendButton.isClickable = false
                     sendButton.isEnabled = false
                 }
             }
-        })
 
+            override fun beforeTextChanged(s: CharSequence, start: Int, count: Int, after: Int) {}
+
+            override fun afterTextChanged(s: Editable) {}
+        }
+
+        chatInput.addTextChangedListener(textWatcher)
         sendButton.setOnClickListener(this)
-
 
         chatAdapter = activity?.let { ChatAdapter(messageList.reversed(), it) }
         recyclerviewChat.adapter = chatAdapter
-
     }
 
     override fun onClick(p0: View?) {
-
-        if (chatInput.text.isNotEmpty()){
+        if (chatInput.text.isNotEmpty()) {
             communicationListener?.onCommunication(chatInput.text.toString())
             chatInput.setText("")
         }
-
     }
 
+    fun setCommunicationListener(communicationListener: CommunicationListener) {
+        this.communicationListener = communicationListener
+    }
 
-    fun setCommunicationListener(communicationListener: CommunicationListener){
-       this.communicationListener = communicationListener
-   }
-
-    interface CommunicationListener{
+    interface CommunicationListener {
         fun onCommunication(message: String)
     }
 
-    fun communicate(message: Message){
+    fun communicate(message: Message) {
         messageList.add(message)
-        if(activity != null) {
+        if (activity != null) {
             chatAdapter = ChatAdapter(messageList.reversed(), requireActivity())
             recyclerviewChat.adapter = chatAdapter
             recyclerviewChat.scrollToPosition(0)
         }
     }
-
-
 }

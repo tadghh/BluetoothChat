@@ -1,23 +1,25 @@
 package com.webianks.bluechat
 
+import android.annotation.SuppressLint
 import android.bluetooth.BluetoothAdapter
-import android.content.Context
-import android.util.Log
-import android.bluetooth.BluetoothSocket
 import android.bluetooth.BluetoothDevice
+import android.bluetooth.BluetoothManager
 import android.bluetooth.BluetoothServerSocket
+import android.bluetooth.BluetoothSocket
+import android.content.Context
+import android.os.Bundle
+import android.os.Handler
+import android.util.Log
 import java.io.IOException
 import java.io.InputStream
 import java.io.OutputStream
-import android.os.Bundle
-import android.os.Handler
-import java.util.*
+import java.util.UUID
 
 /**
  * Created by ramankit on 20/7/17.
  */
 
-class BluetoothChatService(context: Context, handler: Handler){
+class BluetoothChatService(context: Context, handler: Handler) {
 
     // Member fields
     private var mAdapter: BluetoothAdapter? = null
@@ -29,7 +31,7 @@ class BluetoothChatService(context: Context, handler: Handler){
     private var mState: Int = 0
     private var mNewState: Int = 0
 
-    private val  TAG: String = javaClass.simpleName
+    private val TAG: String = javaClass.simpleName
 
     // Unique UUID for this application
     private val MY_UUID_SECURE = UUID.fromString("29621b37-e817-485a-a258-52da5261421a")
@@ -48,9 +50,12 @@ class BluetoothChatService(context: Context, handler: Handler){
         val STATE_CONNECTED = 3  // now connected to a remote device
     }
 
+    private val bluetoothManager =
+        context.getSystemService(Context.BLUETOOTH_SERVICE) as BluetoothManager
+
     init {
 
-        mAdapter = BluetoothAdapter.getDefaultAdapter()
+        mAdapter = bluetoothManager.adapter
         mState = STATE_NONE
         mNewState = mState
         mHandler = handler
@@ -59,7 +64,8 @@ class BluetoothChatService(context: Context, handler: Handler){
     /**
      * Return the current connection state.
      */
-    @Synchronized fun getState(): Int {
+    @Synchronized
+    fun getState(): Int {
         return mState
     }
 
@@ -67,7 +73,8 @@ class BluetoothChatService(context: Context, handler: Handler){
      * Start the chat service. Specifically start AcceptThread to begin a
      * session in listening (server) mode. Called by the Activity onResume()
      */
-    @Synchronized fun start() {
+    @Synchronized
+    fun start() {
         Log.d(TAG, "start")
 
         // Cancel any thread attempting to make a connection
@@ -103,9 +110,10 @@ class BluetoothChatService(context: Context, handler: Handler){
      * *
      * @param secure Socket Security type - Secure (true) , Insecure (false)
      */
-    @Synchronized fun connect(device: BluetoothDevice?, secure: Boolean) {
+    @Synchronized
+    fun connect(device: BluetoothDevice?, secure: Boolean) {
 
-        Log.d(TAG, "connect to: " + device)
+        Log.d(TAG, "connect to: $device")
 
         // Cancel any thread attempting to make a connection
         if (mState == STATE_CONNECTING) {
@@ -137,8 +145,10 @@ class BluetoothChatService(context: Context, handler: Handler){
      * *
      * @param device The BluetoothDevice that has been connected
      */
-    @Synchronized fun connected(socket: BluetoothSocket?, device: BluetoothDevice?, socketType: String) {
-        Log.d(TAG, "connected, Socket Type:" + socketType)
+    @SuppressLint("MissingPermission")
+    @Synchronized
+    fun connected(socket: BluetoothSocket?, device: BluetoothDevice?, socketType: String) {
+        Log.d(TAG, "connected, Socket Type:$socketType")
 
         // Cancel the thread that completed the connection
         if (mConnectThread != null) {
@@ -170,6 +180,7 @@ class BluetoothChatService(context: Context, handler: Handler){
         val msg = mHandler?.obtainMessage(Constants.MESSAGE_DEVICE_NAME)
         val bundle = Bundle()
 
+
         bundle.putString(Constants.DEVICE_NAME, device?.name)
         msg?.data = bundle
         if (msg != null) {
@@ -182,43 +193,44 @@ class BluetoothChatService(context: Context, handler: Handler){
     /**
      * Stop all threads
      */
-    @Synchronized fun stop() {
-        Log.d(TAG, "stop")
+    @Synchronized
+//    fun stop() {
+//        Log.d(TAG, "stop")
+//
+//        if (mConnectThread != null) {
+//            mConnectThread?.cancel()
+//            mConnectThread = null
+//        }
+//
+//        if (mConnectedThread != null) {
+//            mConnectedThread?.cancel()
+//            mConnectedThread = null
+//        }
+//
+//        if (mSecureAcceptThread != null) {
+//            mSecureAcceptThread?.cancel()
+//            mSecureAcceptThread = null
+//        }
+//
+//        if (mInsecureAcceptThread != null) {
+//            mInsecureAcceptThread?.cancel()
+//            mInsecureAcceptThread = null
+//        }
+//        mState = STATE_NONE
+//        // Update UI title
+//        //updateUserInterfaceTitle()
+//    }
 
-        if (mConnectThread != null) {
-            mConnectThread?.cancel()
-            mConnectThread = null
-        }
+            /**
+             * Write to the ConnectedThread in an unsynchronized manner
 
-        if (mConnectedThread != null) {
-            mConnectedThread?.cancel()
-            mConnectedThread = null
-        }
-
-        if (mSecureAcceptThread != null) {
-            mSecureAcceptThread?.cancel()
-            mSecureAcceptThread = null
-        }
-
-        if (mInsecureAcceptThread != null) {
-            mInsecureAcceptThread?.cancel()
-            mInsecureAcceptThread = null
-        }
-        mState = STATE_NONE
-        // Update UI title
-        //updateUserInterfaceTitle()
-    }
-
-    /**
-     * Write to the ConnectedThread in an unsynchronized manner
-
-     * @param out The bytes to write
-     * *
-     * @see ConnectedThread.write
-     */
+             * @param out The bytes to write
+             * *
+             * @see ConnectedThread.write
+             */
     fun write(out: ByteArray) {
         // Create temporary object
-        var r: ConnectedThread?  = null
+        var r: ConnectedThread?
         // Synchronize a copy of the ConnectedThread
         synchronized(this) {
             if (mState != STATE_CONNECTED) return
@@ -266,7 +278,7 @@ class BluetoothChatService(context: Context, handler: Handler){
 
         mState = STATE_NONE
         // Update UI title
-       // updateUserInterfaceTitle()
+        // updateUserInterfaceTitle()
 
         // Start the service over to restart listening mode
         this@BluetoothChatService.start()
@@ -278,6 +290,7 @@ class BluetoothChatService(context: Context, handler: Handler){
      * like a server-side client. It runs until a connection is accepted
      * (or until cancelled).
      */
+    @SuppressLint("MissingPermission")
     private inner class AcceptThread(secure: Boolean) : Thread() {
         // The local server socket
         private val mmServerSocket: BluetoothServerSocket?
@@ -289,12 +302,15 @@ class BluetoothChatService(context: Context, handler: Handler){
 
             // Create a new listening server socket
             try {
-                if (secure) {
-                    tmp = mAdapter?.listenUsingRfcommWithServiceRecord(NAME_SECURE,
-                            MY_UUID_SECURE)
+                tmp = if (secure) {
+                    mAdapter?.listenUsingRfcommWithServiceRecord(
+                        NAME_SECURE,
+                        MY_UUID_SECURE
+                    )
                 } else {
-                    tmp = mAdapter?.listenUsingInsecureRfcommWithServiceRecord(
-                            NAME_INSECURE, MY_UUID_INSECURE)
+                    mAdapter?.listenUsingInsecureRfcommWithServiceRecord(
+                        NAME_INSECURE, MY_UUID_INSECURE
+                    )
                 }
             } catch (e: IOException) {
                 Log.e(TAG, "Socket Type: " + mSocketType + "listen() failed", e)
@@ -306,9 +322,11 @@ class BluetoothChatService(context: Context, handler: Handler){
 
         override fun run() {
 
-            Log.d(TAG, "Socket Type: " + mSocketType +
-                    "BEGIN mAcceptThread" + this)
-            name = "AcceptThread" + mSocketType
+            Log.d(
+                TAG, "Socket Type: " + mSocketType +
+                        "BEGIN mAcceptThread" + this
+            )
+            name = "AcceptThread$mSocketType"
 
             var socket: BluetoothSocket?
 
@@ -329,12 +347,15 @@ class BluetoothChatService(context: Context, handler: Handler){
                         when (mState) {
                             STATE_LISTEN, STATE_CONNECTING ->
                                 // Situation normal. Start the connected thread.
-                                connected(socket, socket?.remoteDevice,
-                                        mSocketType)
+                                connected(
+                                    socket, socket.remoteDevice,
+                                    mSocketType
+                                )
+
                             STATE_NONE, STATE_CONNECTED ->
                                 // Either not ready or already connected. Terminate new socket.
                                 try {
-                                    socket?.close()
+                                    socket.close()
                                 } catch (e: IOException) {
                                     Log.e(TAG, "Could not close unwanted socket", e)
                                 }
@@ -345,7 +366,7 @@ class BluetoothChatService(context: Context, handler: Handler){
                     }
                 }
             }
-            Log.i(TAG, "END mAcceptThread, socket Type: " + mSocketType)
+            Log.i(TAG, "END mAcceptThread, socket Type: $mSocketType")
 
         }
 
@@ -366,7 +387,9 @@ class BluetoothChatService(context: Context, handler: Handler){
      * with a device. It runs straight through; the connection either
      * succeeds or fails.
      */
-    private inner class ConnectThread(private val mmDevice: BluetoothDevice?, secure: Boolean) : Thread() {
+    @SuppressLint("MissingPermission")
+    private inner class ConnectThread(private val mmDevice: BluetoothDevice?, secure: Boolean) :
+        Thread() {
         private val mmSocket: BluetoothSocket?
         private val mSocketType: String
 
@@ -377,12 +400,14 @@ class BluetoothChatService(context: Context, handler: Handler){
             // Get a BluetoothSocket for a connection with the
             // given BluetoothDevice
             try {
-                if (secure) {
-                    tmp = mmDevice?.createRfcommSocketToServiceRecord(
-                            MY_UUID_SECURE)
+                tmp = if (secure) {
+                    mmDevice?.createRfcommSocketToServiceRecord(
+                        MY_UUID_SECURE
+                    )
                 } else {
-                    tmp = mmDevice?.createInsecureRfcommSocketToServiceRecord(
-                            MY_UUID_INSECURE)
+                    mmDevice?.createInsecureRfcommSocketToServiceRecord(
+                        MY_UUID_INSECURE
+                    )
                 }
             } catch (e: IOException) {
                 Log.e(TAG, "Socket Type: " + mSocketType + "create() failed", e)
@@ -394,8 +419,8 @@ class BluetoothChatService(context: Context, handler: Handler){
 
         override fun run() {
 
-            Log.i(TAG, "BEGIN mConnectThread SocketType:" + mSocketType)
-            name = "ConnectThread" + mSocketType
+            Log.i(TAG, "BEGIN mConnectThread SocketType:$mSocketType")
+            name = "ConnectThread$mSocketType"
 
             // Always cancel discovery because it will slow down a connection
             mAdapter?.cancelDiscovery()
@@ -411,8 +436,10 @@ class BluetoothChatService(context: Context, handler: Handler){
                 try {
                     mmSocket?.close()
                 } catch (e2: IOException) {
-                    Log.e(TAG, "unable to close() " + mSocketType +
-                            " socket during connection failure", e2)
+                    Log.e(
+                        TAG, "unable to close() " + mSocketType +
+                                " socket during connection failure", e2
+                    )
                 }
 
                 connectionFailed()
@@ -442,13 +469,16 @@ class BluetoothChatService(context: Context, handler: Handler){
      * This thread runs during a connection with a remote device.
      * It handles all incoming and outgoing transmissions.
      */
-    private inner class ConnectedThread(private val mmSocket: BluetoothSocket?, socketType: String) : Thread() {
+    private inner class ConnectedThread(
+        private val mmSocket: BluetoothSocket?,
+        socketType: String
+    ) : Thread() {
 
         private val mmInStream: InputStream?
         private val mmOutStream: OutputStream?
 
         init {
-            Log.d(TAG, "create ConnectedThread: " + socketType)
+            Log.d(TAG, "create ConnectedThread: $socketType")
             var tmpIn: InputStream? = null
             var tmpOut: OutputStream? = null
 
@@ -478,7 +508,7 @@ class BluetoothChatService(context: Context, handler: Handler){
 
                     // Send the obtained bytes to the UI Activity
                     mHandler?.obtainMessage(Constants.MESSAGE_READ, bytes, -1, buffer)
-                            ?.sendToTarget()
+                        ?.sendToTarget()
                 } catch (e: IOException) {
                     Log.e(TAG, "disconnected", e)
                     connectionLost()
@@ -499,7 +529,7 @@ class BluetoothChatService(context: Context, handler: Handler){
 
                 // Share the sent message back to the UI Activity
                 mHandler?.obtainMessage(Constants.MESSAGE_WRITE, -1, -1, buffer)
-                        ?.sendToTarget()
+                    ?.sendToTarget()
             } catch (e: IOException) {
                 Log.e(TAG, "Exception during write", e)
             }
@@ -515,6 +545,4 @@ class BluetoothChatService(context: Context, handler: Handler){
 
         }
     }
-
-
 }
