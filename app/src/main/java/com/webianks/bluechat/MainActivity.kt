@@ -2,7 +2,6 @@ package com.webianks.bluechat
 
 
 import android.Manifest
-import android.annotation.SuppressLint
 import android.app.AlertDialog
 import android.bluetooth.BluetoothAdapter
 import android.bluetooth.BluetoothDevice
@@ -17,8 +16,10 @@ import android.os.Build
 import android.os.Bundle
 import android.os.Handler
 import android.os.HandlerThread
+import android.util.Log
 import android.view.View
 import android.widget.*
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.annotation.RequiresApi
 import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.content.res.AppCompatResources
@@ -41,6 +42,8 @@ class MainActivity : AppCompatActivity(), DevicesRecyclerViewAdapter.ItemClickLi
     private lateinit var devicesAdapter: DevicesRecyclerViewAdapter
     private var mBtAdapter: BluetoothAdapter? = null
     private val PERMISSION_REQUEST_CODE_BLUETOOTH = 111
+    private val PERMISSION_REQUEST_BLUETOOTH_SCAN = 112
+    private val PERMISSION_REQUEST_CODE_BLUETOOTH_ADVERTISE = 113
     private val PERMISSION_REQUEST_LOCATION = 123
     private val PERMISSION_REQUEST_LOCATION_KEY = "PERMISSION_REQUEST_LOCATION"
     private var alreadyAskedForPermission = false
@@ -54,7 +57,21 @@ class MainActivity : AppCompatActivity(), DevicesRecyclerViewAdapter.ItemClickLi
     private lateinit var handlerThread: HandlerThread
     private var mChatService: BluetoothChatService? = null
     private lateinit var chatFragment: ChatFragment
-
+    val requestPermissionLauncher =
+        registerForActivityResult(
+            ActivityResultContracts.RequestPermission()
+        ) { isGranted: Boolean ->
+            if (isGranted) {
+                // Permission is granted. Continue the action or workflow in your
+                // app.
+            } else {
+                // Explain to the user that the feature is unavailable because the
+                // feature requires a permission that the user has denied. At the
+                // same time, respect the user's decision. Don't link to system
+                // settings in an effort to convince the user to change their
+                // decision.
+            }
+        }
     private lateinit var mHandler: Handler
 
     private fun requestRuntimePermissions() {
@@ -64,39 +81,23 @@ class MainActivity : AppCompatActivity(), DevicesRecyclerViewAdapter.ItemClickLi
             ) == PackageManager.PERMISSION_GRANTED
         ) {
             Toast.makeText(this, "Permission for BT granted", Toast.LENGTH_LONG).show()
-        } else if (ActivityCompat.shouldShowRequestPermissionRationale(
-                this,
+        } else {
+            requestPermissionLauncher.launch(
                 Manifest.permission.BLUETOOTH_CONNECT
             )
-        ) {
-            var builder = AlertDialog.Builder(this)
-            builder.setMessage("Why no Bluetooth, we need Bluetooth")
-                .setTitle("Permission Required")
-                .setCancelable(false)
-                .setPositiveButton("Yes") { _, _ ->
-                    ActivityCompat.requestPermissions(
-                        this@MainActivity,
-                        arrayOf(Manifest.permission.BLUETOOTH_CONNECT),
-                        PERMISSION_REQUEST_CODE_BLUETOOTH
-                    )
-                }
-                .setNegativeButton("Cancel") { dialog, _ ->
-                    dialog.dismiss()
-                }
-            val dialog = builder.create()
-            dialog.show()
-        } else {
-            ActivityCompat.requestPermissions(
-                this,
-                arrayOf(Manifest.permission.BLUETOOTH_CONNECT),
-                PERMISSION_REQUEST_CODE_BLUETOOTH
-            )
+
+
+//            ActivityCompat.requestPermissions(
+//                this,
+//                arrayOf(Manifest.permission.BLUETOOTH_CONNECT),
+//                PERMISSION_REQUEST_CODE_BLUETOOTH
+//            )
         }
     }
 
 
     override fun onCreate(savedInstanceState: Bundle?) {
-        requestRuntimePermissions();
+        requestRuntimePermissions()
         handlerThread = HandlerThread("MessagesHandler")
         handlerThread.start()
         mHandler = Handler(handlerThread.looper) { msg ->
@@ -253,7 +254,7 @@ class MainActivity : AppCompatActivity(), DevicesRecyclerViewAdapter.ItemClickLi
         if (savedInstanceState != null)
             alreadyAskedForPermission =
                 savedInstanceState.getBoolean(PERMISSION_REQUEST_LOCATION_KEY, false)
-
+        Log.i("NumberGenerated", "Function has generated zero.");
         recyclerView.layoutManager = LinearLayoutManager(this)
         recyclerViewPaired.layoutManager = LinearLayoutManager(this)
 
@@ -287,7 +288,7 @@ class MainActivity : AppCompatActivity(), DevicesRecyclerViewAdapter.ItemClickLi
         mBtAdapter = bluetoothManager.adapter
 
         // Initialize the BluetoothChatService to perform bluetooth connections
-        mChatService = BluetoothChatService(this, mHandler)
+        //mChatService = BluetoothChatService(this, mHandler)
 
         if (mBtAdapter == null)
             showAlertAndExit()
@@ -295,53 +296,80 @@ class MainActivity : AppCompatActivity(), DevicesRecyclerViewAdapter.ItemClickLi
 
             if (mBtAdapter?.isEnabled == false) {
 
-                val enableBtIntent = Intent(BluetoothAdapter.ACTION_REQUEST_ENABLE)
 
                 if (ActivityCompat.checkSelfPermission(
                         this,
                         Manifest.permission.BLUETOOTH_CONNECT
                     ) != PackageManager.PERMISSION_GRANTED
                 ) {
-                    requestRuntimePermissions()
-                    return
+                    requestPermissionLauncher.launch(
+                        Manifest.permission.BLUETOOTH_CONNECT
+                    )
+
                 }
-                startActivity(enableBtIntent)
+                if (ActivityCompat.checkSelfPermission(
+                        this,
+                        Manifest.permission.BLUETOOTH_CONNECT
+                    ) == PackageManager.PERMISSION_GRANTED
+                ) {
+                    Log.i("NumberGenerated", "We have permission.");
+                    //mChatService = BluetoothChatService(this, mHandler)
+                    val enableBtIntent = Intent(BluetoothAdapter.ACTION_REQUEST_ENABLE)
+                    startActivity(enableBtIntent)
+                    // Get a set of currently paired devices
+                    val pairedDevices = mBtAdapter?.bondedDevices
+                    val mPairedDeviceList = arrayListOf<DeviceData>()
+
+                    // If there are paired devices, add each one to the ArrayAdapter
+                    if ((pairedDevices?.size ?: 0) > 0) {
+                        // There are paired devices. Get the name and address of each paired device.
+                        for (device in pairedDevices!!) {
+
+                            //HERE
+                            val deviceName = device.name
+                            val deviceHardwareAddress = device.address // MAC address
+                            mPairedDeviceList.add(DeviceData(deviceName, deviceHardwareAddress))
+                        }
+
+                        val devicesAdapter =
+                            DevicesRecyclerViewAdapter(
+                                context = this,
+                                mDeviceList = mPairedDeviceList
+                            )
+                        recyclerViewPaired.adapter = devicesAdapter
+                        devicesAdapter.setItemClickListener(this)
+                        headerLabelPaired.visibility = View.VISIBLE
+
+                    }
+                }
+
             } else {
                 status.text = getString(R.string.not_connected)
             }
 
-            // Get a set of currently paired devices
-            val pairedDevices = mBtAdapter?.bondedDevices
-            val mPairedDeviceList = arrayListOf<DeviceData>()
 
-            // If there are paired devices, add each one to the ArrayAdapter
-            if ((pairedDevices?.size ?: 0) > 0) {
-                // There are paired devices. Get the name and address of each paired device.
-                for (device in pairedDevices!!) {
-                    val deviceName = device.name
-                    val deviceHardwareAddress = device.address // MAC address
-                    mPairedDeviceList.add(DeviceData(deviceName, deviceHardwareAddress))
-                }
-
-                val devicesAdapter =
-                    DevicesRecyclerViewAdapter(context = this, mDeviceList = mPairedDeviceList)
-                recyclerViewPaired.adapter = devicesAdapter
-                devicesAdapter.setItemClickListener(this)
-                headerLabelPaired.visibility = View.VISIBLE
-
-            }
         }
-
         //showChatFragment()
-
     }
 
-    @SuppressLint("MissingPermission")
+
     private fun makeVisible() {
 
         val discoverableIntent = Intent(BluetoothAdapter.ACTION_REQUEST_DISCOVERABLE)
         discoverableIntent.putExtra(BluetoothAdapter.EXTRA_DISCOVERABLE_DURATION, 300)
 
+        if (ActivityCompat.checkSelfPermission(
+                this,
+                Manifest.permission.BLUETOOTH_ADVERTISE
+            ) != PackageManager.PERMISSION_GRANTED
+        ) {
+            ActivityCompat.requestPermissions(
+                this@MainActivity,
+                arrayOf(Manifest.permission.BLUETOOTH_ADVERTISE),
+                PERMISSION_REQUEST_CODE_BLUETOOTH_ADVERTISE
+            )
+            return
+        }
         startActivity(discoverableIntent)
 
     }
@@ -417,7 +445,7 @@ class MainActivity : AppCompatActivity(), DevicesRecyclerViewAdapter.ItemClickLi
     private val mReceiver = object : BroadcastReceiver() {
 
         @RequiresApi(Build.VERSION_CODES.TIRAMISU)
-        @SuppressLint("MissingPermission")
+
         override fun onReceive(context: Context, intent: Intent) {
 
             val action = intent.action
@@ -431,6 +459,18 @@ class MainActivity : AppCompatActivity(), DevicesRecyclerViewAdapter.ItemClickLi
                         BluetoothDevice::class.java
                     )
 
+                if (ActivityCompat.checkSelfPermission(
+                        this@MainActivity,
+                        Manifest.permission.BLUETOOTH_CONNECT
+                    ) != PackageManager.PERMISSION_GRANTED
+                ) {
+                    ActivityCompat.requestPermissions(
+                        this@MainActivity,
+                        arrayOf(Manifest.permission.BLUETOOTH_CONNECT),
+                        PERMISSION_REQUEST_CODE_BLUETOOTH
+                    )
+                    return
+                }
                 val deviceName = device?.name
                 val deviceHardwareAddress = device?.address // MAC address
 
@@ -469,13 +509,11 @@ class MainActivity : AppCompatActivity(), DevicesRecyclerViewAdapter.ItemClickLi
                     Manifest.permission.BLUETOOTH_CONNECT
                 ) != PackageManager.PERMISSION_GRANTED
             ) {
-                // TODO: Consider calling
-                //    ActivityCompat#requestPermissions
-                // here to request the missing permissions, and then overriding
-                //   public void onRequestPermissionsResult(int requestCode, String[] permissions,
-                //                                          int[] grantResults)
-                // to handle the case where the user grants the permission. See the documentation
-                // for ActivityCompat#requestPermissions for more details.
+                ActivityCompat.requestPermissions(
+                    this@MainActivity,
+                    arrayOf(Manifest.permission.BLUETOOTH_CONNECT),
+                    PERMISSION_REQUEST_CODE_BLUETOOTH
+                )
                 return
             }
             val pairedDevices = mBtAdapter?.bondedDevices
@@ -542,6 +580,60 @@ class MainActivity : AppCompatActivity(), DevicesRecyclerViewAdapter.ItemClickLi
                     Toast.makeText(this, "Permissions granted yo", Toast.LENGTH_SHORT).show()
                 } else {
                     val builder = AlertDialog.Builder(this)
+                    builder.setMessage("Why no Bluetooth, we need Bluetooth")
+                        .setTitle("Permission Required")
+                        .setCancelable(false)
+                        .setPositiveButton("Yes") { _, _ ->
+                            ActivityCompat.requestPermissions(
+                                this@MainActivity,
+                                arrayOf(Manifest.permission.BLUETOOTH_CONNECT),
+                                PERMISSION_REQUEST_CODE_BLUETOOTH
+                            )
+                        }
+                        .setNegativeButton("Cancel") { dialog, _ ->
+                            dialog.dismiss()
+                        }
+                    val dialog = builder.create()
+                    dialog.show()
+                }
+            }
+
+            PERMISSION_REQUEST_BLUETOOTH_SCAN -> {
+                alreadyAskedForPermission = false
+                if (grantResults[0] == PackageManager.PERMISSION_GRANTED &&
+                    grantResults[1] == PackageManager.PERMISSION_GRANTED
+                ) {
+                    //Log.d(TAG, "Coarse and fine location permissions granted")
+                    Toast.makeText(this, "Permissions granted yo", Toast.LENGTH_SHORT).show()
+                } else {
+                    val builder = AlertDialog.Builder(this)
+                    builder.setMessage("Why no Bluetooth, we need Bluetooth")
+                        .setTitle("Permission Required")
+                        .setCancelable(false)
+                        .setPositiveButton("Yes") { _, _ ->
+                            ActivityCompat.requestPermissions(
+                                this@MainActivity,
+                                arrayOf(Manifest.permission.BLUETOOTH_CONNECT),
+                                PERMISSION_REQUEST_CODE_BLUETOOTH
+                            )
+                        }
+                        .setNegativeButton("Cancel") { dialog, _ ->
+                            dialog.dismiss()
+                        }
+                    val dialog = builder.create()
+                    dialog.show()
+                }
+            }
+
+            PERMISSION_REQUEST_CODE_BLUETOOTH_ADVERTISE -> {
+                alreadyAskedForPermission = false
+                if (grantResults[0] == PackageManager.PERMISSION_GRANTED &&
+                    grantResults[1] == PackageManager.PERMISSION_GRANTED
+                ) {
+                    //Log.d(TAG, "Coarse and fine location permissions granted")
+                    Toast.makeText(this, "Permissions granted yo", Toast.LENGTH_SHORT).show()
+                } else {
+                    val builder = AlertDialog.Builder(this)
                     builder.setTitle(getString(R.string.fun_limted))
                         .setMessage(getString(R.string.since_perm_not_granted))
                         .setPositiveButton(android.R.string.ok, null).show()
@@ -562,13 +654,12 @@ class MainActivity : AppCompatActivity(), DevicesRecyclerViewAdapter.ItemClickLi
                 Manifest.permission.BLUETOOTH_SCAN
             ) != PackageManager.PERMISSION_GRANTED
         ) {
-            // TODO: Consider calling
-            //    ActivityCompat#requestPermissions
-            // here to request the missing permissions, and then overriding
-            //   public void onRequestPermissionsResult(int requestCode, String[] permissions,
-            //                                          int[] grantResults)
-            // to handle the case where the user grants the permission. See the documentation
-            // for ActivityCompat#requestPermissions for more details.
+            ActivityCompat.requestPermissions(
+                this@MainActivity,
+                arrayOf(Manifest.permission.BLUETOOTH_SCAN),
+                PERMISSION_REQUEST_BLUETOOTH_SCAN
+            )
+
             return
         }
         mBtAdapter?.cancelDiscovery()

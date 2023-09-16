@@ -1,7 +1,6 @@
 package com.webianks.bluechat
 
 import android.Manifest
-import android.annotation.SuppressLint
 import android.bluetooth.BluetoothAdapter
 import android.bluetooth.BluetoothDevice
 import android.bluetooth.BluetoothManager
@@ -33,7 +32,7 @@ class BluetoothChatService(context: Context, handler: Handler) {
     private var mConnectedThread: ConnectedThread? = null
     private var mState: Int = 0
     private var mNewState: Int = 0
-    private var currentContext = context;
+    private var currentContext = context
     private val TAG: String = javaClass.simpleName
 
     // Unique UUID for this application
@@ -58,7 +57,8 @@ class BluetoothChatService(context: Context, handler: Handler) {
 
     init {
 
-        mAdapter = bluetoothManager.adapter
+        // mAdapter = bluetoothManager.adapter
+        mAdapter = null
         mState = STATE_NONE
         mNewState = mState
         mHandler = handler
@@ -187,21 +187,15 @@ class BluetoothChatService(context: Context, handler: Handler) {
         if (ActivityCompat.checkSelfPermission(
                 currentContext,
                 Manifest.permission.BLUETOOTH_CONNECT
-            ) != PackageManager.PERMISSION_GRANTED
+            ) == PackageManager.PERMISSION_GRANTED
         ) {
-            // TODO: Consider calling
-            //    ActivityCompat#requestPermissions
-            // here to request the missing permissions, and then overriding
-            //   public void onRequestPermissionsResult(int requestCode, String[] permissions,
-            //                                          int[] grantResults)
-            // to handle the case where the user grants the permission. See the documentation
-            // for ActivityCompat#requestPermissions for more details.
-            return
-        }
-        bundle.putString(Constants.DEVICE_NAME, device?.name)
-        msg?.data = bundle
-        if (msg != null) {
-            mHandler?.sendMessage(msg)
+
+
+            bundle.putString(Constants.DEVICE_NAME, device?.name)
+            msg?.data = bundle
+            if (msg != null) {
+                mHandler?.sendMessage(msg)
+            }
         }
         // Update UI title
         //updateUserInterfaceTitle()
@@ -211,40 +205,40 @@ class BluetoothChatService(context: Context, handler: Handler) {
      * Stop all threads
      */
     @Synchronized
-//    fun stop() {
-//        Log.d(TAG, "stop")
-//
-//        if (mConnectThread != null) {
-//            mConnectThread?.cancel()
-//            mConnectThread = null
-//        }
-//
-//        if (mConnectedThread != null) {
-//            mConnectedThread?.cancel()
-//            mConnectedThread = null
-//        }
-//
-//        if (mSecureAcceptThread != null) {
-//            mSecureAcceptThread?.cancel()
-//            mSecureAcceptThread = null
-//        }
-//
-//        if (mInsecureAcceptThread != null) {
-//            mInsecureAcceptThread?.cancel()
-//            mInsecureAcceptThread = null
-//        }
-//        mState = STATE_NONE
-//        // Update UI title
-//        //updateUserInterfaceTitle()
-//    }
+    fun stop() {
+        Log.d(TAG, "stop")
 
-            /**
-             * Write to the ConnectedThread in an unsynchronized manner
+        if (mConnectThread != null) {
+            mConnectThread?.cancel()
+            mConnectThread = null
+        }
 
-             * @param out The bytes to write
-             * *
-             * @see ConnectedThread.write
-             */
+        if (mConnectedThread != null) {
+            mConnectedThread?.cancel()
+            mConnectedThread = null
+        }
+
+        if (mSecureAcceptThread != null) {
+            mSecureAcceptThread?.cancel()
+            mSecureAcceptThread = null
+        }
+
+        if (mInsecureAcceptThread != null) {
+            mInsecureAcceptThread?.cancel()
+            mInsecureAcceptThread = null
+        }
+        mState = STATE_NONE
+        // Update UI title
+        //updateUserInterfaceTitle()
+    }
+
+    /**
+     * Write to the ConnectedThread in an unsynchronized manner
+
+     * @param out The bytes to write
+     * *
+     * @see ConnectedThread.write
+     */
     fun write(out: ByteArray) {
         // Create temporary object
         var r: ConnectedThread?
@@ -307,7 +301,7 @@ class BluetoothChatService(context: Context, handler: Handler) {
      * like a server-side client. It runs until a connection is accepted
      * (or until cancelled).
      */
-    @SuppressLint("MissingPermission")
+
     private inner class AcceptThread(secure: Boolean) : Thread() {
         // The local server socket
         private val mmServerSocket: BluetoothServerSocket?
@@ -319,16 +313,24 @@ class BluetoothChatService(context: Context, handler: Handler) {
 
             // Create a new listening server socket
             try {
-                tmp = if (secure) {
-                    mAdapter?.listenUsingRfcommWithServiceRecord(
-                        NAME_SECURE,
-                        MY_UUID_SECURE
-                    )
-                } else {
-                    mAdapter?.listenUsingInsecureRfcommWithServiceRecord(
-                        NAME_INSECURE, MY_UUID_INSECURE
-                    )
+                if (ActivityCompat.checkSelfPermission(
+                        currentContext,
+                        Manifest.permission.BLUETOOTH_CONNECT
+                    ) == PackageManager.PERMISSION_GRANTED
+                ) {
+                    tmp = if (secure) {
+
+                        mAdapter?.listenUsingRfcommWithServiceRecord(
+                            NAME_SECURE,
+                            MY_UUID_SECURE
+                        )
+                    } else {
+                        mAdapter?.listenUsingInsecureRfcommWithServiceRecord(
+                            NAME_INSECURE, MY_UUID_INSECURE
+                        )
+                    }
                 }
+
             } catch (e: IOException) {
                 Log.e(TAG, "Socket Type: " + mSocketType + "listen() failed", e)
             }
@@ -404,7 +406,7 @@ class BluetoothChatService(context: Context, handler: Handler) {
      * with a device. It runs straight through; the connection either
      * succeeds or fails.
      */
-    @SuppressLint("MissingPermission")
+
     private inner class ConnectThread(private val mmDevice: BluetoothDevice?, secure: Boolean) :
         Thread() {
         private val mmSocket: BluetoothSocket?
@@ -417,15 +419,23 @@ class BluetoothChatService(context: Context, handler: Handler) {
             // Get a BluetoothSocket for a connection with the
             // given BluetoothDevice
             try {
-                tmp = if (secure) {
-                    mmDevice?.createRfcommSocketToServiceRecord(
-                        MY_UUID_SECURE
-                    )
-                } else {
-                    mmDevice?.createInsecureRfcommSocketToServiceRecord(
-                        MY_UUID_INSECURE
-                    )
+                if (ActivityCompat.checkSelfPermission(
+                        currentContext,
+                        Manifest.permission.BLUETOOTH_CONNECT
+                    ) == PackageManager.PERMISSION_GRANTED
+                ) {
+                    tmp = if (secure) {
+
+                        mmDevice?.createRfcommSocketToServiceRecord(
+                            MY_UUID_SECURE
+                        )
+                    } else {
+                        mmDevice?.createInsecureRfcommSocketToServiceRecord(
+                            MY_UUID_INSECURE
+                        )
+                    }
                 }
+
             } catch (e: IOException) {
                 Log.e(TAG, "Socket Type: " + mSocketType + "create() failed", e)
             }
@@ -440,36 +450,43 @@ class BluetoothChatService(context: Context, handler: Handler) {
             name = "ConnectThread$mSocketType"
 
             // Always cancel discovery because it will slow down a connection
-            mAdapter?.cancelDiscovery()
+            if (ActivityCompat.checkSelfPermission(
+                    currentContext,
+                    Manifest.permission.BLUETOOTH_SCAN
+                ) == PackageManager.PERMISSION_GRANTED
+            ) {
+                mAdapter?.cancelDiscovery()
 
-            // Make a connection to the BluetoothSocket
-            try {
-                // This is a blocking call and will only return on a
-                // successful connection or an exception
-                mmSocket?.connect()
-
-            } catch (e: IOException) {
-                // Close the socket
+                // Make a connection to the BluetoothSocket
                 try {
-                    mmSocket?.close()
-                } catch (e2: IOException) {
-                    Log.e(
-                        TAG, "unable to close() " + mSocketType +
-                                " socket during connection failure", e2
-                    )
+                    // This is a blocking call and will only return on a
+                    // successful connection or an exception
+                    mmSocket?.connect()
+
+                } catch (e: IOException) {
+                    // Close the socket
+                    try {
+                        mmSocket?.close()
+                    } catch (e2: IOException) {
+                        Log.e(
+                            TAG, "unable to close() " + mSocketType +
+                                    " socket during connection failure", e2
+                        )
+                    }
+
+                    connectionFailed()
+                    return
                 }
 
-                connectionFailed()
-                return
+                // Reset the ConnectThread because we're done
+                synchronized(this@BluetoothChatService) {
+                    mConnectThread = null
+                }
+
+                // Start the connected thread
+                connected(mmSocket, mmDevice, mSocketType)
             }
 
-            // Reset the ConnectThread because we're done
-            synchronized(this@BluetoothChatService) {
-                mConnectThread = null
-            }
-
-            // Start the connected thread
-            connected(mmSocket, mmDevice, mSocketType)
         }
 
         fun cancel() {
